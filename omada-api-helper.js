@@ -7,6 +7,7 @@
  * internal Web API v2 (undocumented by TP-Link).
  *
  * Tested on: OC220 hardware controller (firmware 5.x / 6.1.x)
+ * Software controller not yet verified — PRs welcome!
  *
  * Auth flow:
  * 1. GET  /api/info                          → get controllerId

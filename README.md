@@ -4,7 +4,7 @@
 
 The Omada Controller has a powerful internal API that drives its web UI — but TP-Link doesn't document it. This toolkit provides a zero-dependency Node.js client and comprehensive endpoint documentation, all reverse-engineered from browser DevTools and real-world usage.
 
-Tested on **Omada Controller 5.x and 6.1.x** (OC220 hardware controller + software controller).
+Tested on **OC220 hardware controller** (firmware 5.x / 6.1.x). Software controller and other hardware versions not yet verified — PRs welcome!
 
 ## Why This Exists
 
@@ -159,7 +159,7 @@ The API is not fully documented by TP-Link. The best way to find new endpoints:
 - SG3428XMPP / SG2210XMP-M2 / TL-SG2210P Managed Switches
 - EAP650 / EAP650-Outdoor Access Points
 
-The API structure should be similar across Omada Controller versions 5.x and 6.x, but field names may vary slightly between major versions.
+The API structure should be similar across Omada Controller versions 5.x and 6.x, but field names may vary between versions. Software controller (Windows/Linux) may use a different default port (8043 instead of 443). Not yet verified — PRs welcome!
 
 ## License
 
