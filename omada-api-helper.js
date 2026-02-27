@@ -336,9 +336,25 @@ async function getEap(mac) {
   return apiCall('GET', `/eaps/${mac}`);
 }
 
-/** Update AP settings (e.g., SSID overrides) */
+/** Update AP settings (e.g., SSID overrides, radio, RSSI) */
 async function updateEap(mac, config) {
   return apiCall('PATCH', `/eaps/${mac}`, config);
+}
+
+/**
+ * Set AP radio channel via frequency (MHz).
+ * The `channel` field is read-only — use `freq` instead!
+ * Common values: 2.4G: Ch1=2412, Ch6=2437, Ch11=2462
+ *                5G:   Ch36=5180, Ch52=5260, Ch100=5500, Ch132=5660
+ *                Auto: 0
+ */
+async function setEapChannel(mac, freq2g, freq5g) {
+  const ap = await getEap(mac);
+  const r = ap.result;
+  return updateEap(mac, {
+    radioSetting2g: { ...r.radioSetting2g, freq: freq2g },
+    radioSetting5g: { ...r.radioSetting5g, freq: freq5g },
+  });
 }
 
 // ============================================================
@@ -471,6 +487,7 @@ module.exports = {
   updateSwitchPort,
   getEap,
   updateEap,
+  setEapChannel,
   getStaticRoutes,
   exploreSettings,
 };

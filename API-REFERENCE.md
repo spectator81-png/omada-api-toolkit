@@ -588,6 +588,102 @@ PATCH /eaps/{mac}
 2. For each SSID override entry, set `enable: true` and `ssidEnable: true/false`
 3. `PATCH /eaps/{mac}` with `{ ssidOverrides: [...] }`
 
+### Radio Settings (Channel, TX Power, RSSI)
+
+The EAP object includes `radioSetting2g` and `radioSetting5g` for radio configuration:
+
+```json
+{
+  "radioSetting2g": {
+    "radioEnable": true,
+    "channelWidth": "4",
+    "channel": "0",
+    "txPower": 20,
+    "txPowerLevel": 4,
+    "freq": 2412,
+    "wirelessMode": -2
+  },
+  "radioSetting5g": {
+    "radioEnable": true,
+    "channelWidth": "6",
+    "channel": "0",
+    "txPower": 28,
+    "txPowerLevel": 4,
+    "freq": 5180,
+    "wirelessMode": -2
+  }
+}
+```
+
+**Setting the channel:**
+
+The channel is controlled via the `freq` field (frequency in MHz), **NOT** the `channel` field. The `channel` field always reads `"0"` regardless of what you set — it's a display value for "auto" and is effectively read-only.
+
+```
+PATCH /eaps/{mac}
+```
+
+```json
+{
+  "radioSetting2g": { "radioEnable": true, "channelWidth": "4", "channel": "0", "txPower": 14, "txPowerLevel": 4, "freq": 2437, "wirelessMode": -2 },
+  "radioSetting5g": { "radioEnable": true, "channelWidth": "6", "channel": "0", "txPower": 28, "txPowerLevel": 4, "freq": 5260, "wirelessMode": -2 }
+}
+```
+
+**Frequency → Channel mapping:**
+
+| Band | Channel | Frequency (MHz) |
+|------|---------|----------------|
+| 2.4 GHz | 1 | 2412 |
+| 2.4 GHz | 6 | 2437 |
+| 2.4 GHz | 11 | 2462 |
+| 5 GHz | 36 | 5180 |
+| 5 GHz | 52 | 5260 |
+| 5 GHz | 100 | 5500 |
+| 5 GHz | 132 | 5660 |
+| Auto | — | 0 |
+
+**Radio field reference:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `freq` | integer | **Channel frequency in MHz.** `0` = auto. This is the actual channel control. |
+| `channel` | string | Always `"0"`. Read-only display value — **setting this has no effect**. |
+| `txPower` | integer | Transmit power in dBm. EAP650: 2.4G range 7–20, 5G range 7–28. |
+| `txPowerLevel` | integer | `4` observed (likely auto/max level) |
+| `channelWidth` | string | `"4"` = 20/40 MHz auto (2.4G), `"6"` = 20/40/80 MHz auto (5G) |
+| `radioEnable` | boolean | Enable/disable this radio band |
+| `wirelessMode` | integer | `-2` observed (auto mode) |
+
+**Transmit power ranges** (from `deviceMisc` in AP response):
+
+| Model | 2.4 GHz | 5 GHz |
+|-------|---------|-------|
+| EAP650 (indoor) | 7–20 dBm | 7–28 dBm |
+| EAP650-Outdoor | 6–20 dBm | 7–28 dBm |
+
+### Minimum RSSI (Roaming Threshold)
+
+Controls when the AP disconnects clients with weak signal, encouraging them to roam to a closer AP.
+
+```
+PATCH /eaps/{mac}
+```
+
+```json
+{
+  "rssiSetting2g": { "rssiEnable": true, "threshold": -75 },
+  "rssiSetting5g": { "rssiEnable": true, "threshold": -75 }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `rssiEnable` | boolean | Enable minimum RSSI enforcement |
+| `threshold` | integer | Signal threshold in dBm (e.g., `-75`). Clients below this are disconnected. |
+
+**Recommended values:** `-75 dBm` is a good starting point for dense deployments with multiple APs. Lower values (e.g., `-80`) are more permissive, higher values (e.g., `-70`) are more aggressive.
+
 ---
 
 ## Port Profiles (LAN Profiles)

@@ -75,8 +75,8 @@ console.log(networks.result.data);
 | File | Description |
 |------|-------------|
 | [`omada-api-helper.js`](omada-api-helper.js) | Zero-dependency Node.js API client with auth flow, cookie jar, and helper methods |
-| [`API-REFERENCE.md`](API-REFERENCE.md) | Complete endpoint documentation with exact payloads for ACLs, VLANs, SSIDs, mDNS, switch ports, port profiles, AP overrides |
-| [`PITFALLS.md`](PITFALLS.md) | 18 common mistakes and undocumented behavior that will save you hours |
+| [`API-REFERENCE.md`](API-REFERENCE.md) | Complete endpoint documentation with exact payloads for ACLs, VLANs, SSIDs, mDNS, switch ports, port profiles, AP radio/channel config |
+| [`PITFALLS.md`](PITFALLS.md) | 19 common mistakes and undocumented behavior that will save you hours |
 | [`examples/`](examples/) | Ready-to-use scripts for common tasks |
 
 ## Common Operations
@@ -176,6 +176,24 @@ overrides.forEach(o => {
 await omada.updateEap('AA-BB-CC-DD-EE-FF', { ssidOverrides: overrides });
 ```
 
+### Set AP channel and TX power
+
+```javascript
+// Channel is set via freq (MHz), NOT the channel field!
+// 2.4G: Ch1=2412, Ch6=2437, Ch11=2462
+// 5G:   Ch36=5180, Ch52=5260, Ch100=5500, Ch132=5660
+await omada.setEapChannel('AA-BB-CC-DD-EE-FF', 2437, 5260); // Ch6 + Ch52
+
+// Set TX power and minimum RSSI for roaming
+const ap = await omada.getEap('AA-BB-CC-DD-EE-FF');
+await omada.updateEap('AA-BB-CC-DD-EE-FF', {
+  radioSetting2g: { ...ap.result.radioSetting2g, txPower: 14 },  // Medium
+  radioSetting5g: { ...ap.result.radioSetting5g, txPower: 28 },  // High
+  rssiSetting2g: { rssiEnable: true, threshold: -75 },
+  rssiSetting5g: { rssiEnable: true, threshold: -75 },
+});
+```
+
 ### Check mDNS reflector rules
 
 ```javascript
@@ -195,7 +213,7 @@ mdns.result.data.forEach(rule => {
 4. **Trunk profiles without native VLAN can't be assigned to ports** — Always include `nativeNetworkId`
 5. **Device adoption often fails on first attempt** — Wait 10–30s and retry
 
-See [PITFALLS.md](PITFALLS.md) for all 18 pitfalls with explanations.
+See [PITFALLS.md](PITFALLS.md) for all 19 pitfalls with explanations.
 
 ## Discovering New Endpoints
 

@@ -288,3 +288,32 @@ The `band` field in SSID configuration is a bitmask, not an enum:
 | `3` | 2.4 GHz + 5 GHz (1+2) |
 
 Creating an SSID with `band: 0` returns "Invalid request parameters".
+
+## 19. AP Channel Is Controlled via `freq`, NOT `channel`
+
+The `radioSetting2g` and `radioSetting5g` objects have both a `channel` and a `freq` field. You'd expect `channel` to control the Wi-Fi channel — **it doesn't.**
+
+The `channel` field always reads `"0"` and setting it has no effect. The actual channel is controlled via the `freq` field (frequency in MHz):
+
+```javascript
+// BAD — channel stays on Auto regardless
+await omada.apiCall('PATCH', `/eaps/${mac}`, {
+  radioSetting2g: { ...existing, channel: "6" },
+});
+
+// GOOD — actually sets channel 6
+await omada.apiCall('PATCH', `/eaps/${mac}`, {
+  radioSetting2g: { ...existing, freq: 2437 },
+});
+```
+
+Common frequency values:
+
+| 2.4 GHz | 5 GHz |
+|---------|-------|
+| Ch 1 = 2412 MHz | Ch 36 = 5180 MHz |
+| Ch 6 = 2437 MHz | Ch 52 = 5260 MHz |
+| Ch 11 = 2462 MHz | Ch 100 = 5500 MHz |
+| Auto = 0 | Ch 132 = 5660 MHz |
+
+Set `freq: 0` to return to auto channel selection.
