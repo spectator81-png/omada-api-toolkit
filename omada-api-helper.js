@@ -263,21 +263,82 @@ async function getDevices() {
 
 /** Adopt a device by MAC address */
 async function adoptDevice(mac) {
-  return apiCall('POST', `/cmd/devices/${mac}/adopt`);
+  return apiCall('POST', '/cmd/devices/adopt', { mac });
 }
 
 // ============================================================
 // WLAN / SSID HELPERS
 // ============================================================
 
-/** List all WLANs/SSIDs */
-async function getWlans() {
+/** List WLAN groups */
+async function getWlanGroups() {
   return apiCall('GET', '/setting/wlans?currentPage=1&currentPageSize=100');
 }
 
-/** Create a new WLAN/SSID */
-async function createWlan(config) {
-  return apiCall('POST', '/setting/wlans', config);
+/** List SSIDs in a WLAN group */
+async function getSsids(wlanGroupId) {
+  return apiCall('GET', `/setting/wlans/${wlanGroupId}/ssids`);
+}
+
+/** Create an SSID in a WLAN group */
+async function createSsid(wlanGroupId, config) {
+  return apiCall('POST', `/setting/wlans/${wlanGroupId}/ssids`, config);
+}
+
+/** Modify an SSID (requires full object — GET first, modify, PATCH) */
+async function updateSsid(wlanGroupId, ssidId, config) {
+  return apiCall('PATCH', `/setting/wlans/${wlanGroupId}/ssids/${ssidId}`, config);
+}
+
+/** Delete an SSID */
+async function deleteSsid(wlanGroupId, ssidId) {
+  return apiCall('DELETE', `/setting/wlans/${wlanGroupId}/ssids/${ssidId}`);
+}
+
+// Keep old name for backward compatibility
+const getWlans = getWlanGroups;
+const createWlan = (config) => apiCall('POST', '/setting/wlans', config);
+
+// ============================================================
+// PORT PROFILE HELPERS
+// ============================================================
+
+/** List port profiles (LAN profiles) */
+async function getPortProfiles() {
+  return apiCall('GET', '/setting/lan/profiles?currentPage=1&currentPageSize=100');
+}
+
+/** Create a port profile */
+async function createPortProfile(config) {
+  return apiCall('POST', '/setting/lan/profiles', config);
+}
+
+// ============================================================
+// SWITCH PORT HELPERS
+// ============================================================
+
+/** List all ports of a switch */
+async function getSwitchPorts(mac) {
+  return apiCall('GET', `/switches/${mac}/ports`);
+}
+
+/** Update a switch port (requires full port object — GET first, modify, PATCH) */
+async function updateSwitchPort(mac, portNumber, config) {
+  return apiCall('PATCH', `/switches/${mac}/ports/${portNumber}`, config);
+}
+
+// ============================================================
+// EAP / ACCESS POINT HELPERS
+// ============================================================
+
+/** Get AP details including SSID overrides */
+async function getEap(mac) {
+  return apiCall('GET', `/eaps/${mac}`);
+}
+
+/** Update AP settings (e.g., SSID overrides) */
+async function updateEap(mac, config) {
+  return apiCall('PATCH', `/eaps/${mac}`, config);
 }
 
 // ============================================================
@@ -304,6 +365,7 @@ async function exploreSettings() {
     '/setting/firewall/acls?type=switch',
     '/setting/firewall/acls?type=eap',
     '/setting/wlans',
+    '/setting/lan/profiles',
     '/setting/routing/staticRoutes',
     '/setting/service/mdns',
     '/setting/service/igmpProxy',
@@ -396,8 +458,19 @@ module.exports = {
   getGatewayAcls,
   createGatewayAcl,
   createSwitchAcl,
-  getWlans,
+  getWlanGroups,
+  getWlans,        // alias for getWlanGroups
+  getSsids,
+  createSsid,
+  updateSsid,
+  deleteSsid,
   createWlan,
+  getPortProfiles,
+  createPortProfile,
+  getSwitchPorts,
+  updateSwitchPort,
+  getEap,
+  updateEap,
   getStaticRoutes,
   exploreSettings,
 };

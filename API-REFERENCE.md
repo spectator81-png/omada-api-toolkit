@@ -396,22 +396,104 @@ GET /setting/service/mdns
 
 ## WLANs / SSIDs
 
-### List WLANs
+WLANs have a two-level hierarchy: **WLAN Groups** contain **SSIDs**.
+
+### List WLAN Groups
 
 ```
 GET /setting/wlans?currentPage=1&currentPageSize=100
 ```
 
-### Create WLAN
+Returns WLAN groups (e.g., "Default"). Each group has an `id` used in SSID endpoints.
+
+### List SSIDs in a WLAN Group
 
 ```
-POST /setting/wlans
+GET /setting/wlans/{wlanGroupId}/ssids
 ```
+
+### Create SSID
+
+```
+POST /setting/wlans/{wlanGroupId}/ssids
+```
+
+**Full request body (all required fields):**
+```json
+{
+  "name": "MySSID",
+  "band": 3,
+  "type": 0,
+  "guestNetEnable": false,
+  "security": 3,
+  "broadcast": true,
+  "vlanSetting": {
+    "mode": 1,
+    "customConfig": { "vlanId": 10 }
+  },
+  "pskSetting": {
+    "securityKey": "your-wifi-password",
+    "encryptionPsk": 3,
+    "versionPsk": 2,
+    "gikRekeyPskEnable": false
+  },
+  "rateLimit": { "rateLimitId": "YOUR_RATE_LIMIT_ID" },
+  "ssidRateLimit": { "rateLimitId": "YOUR_RATE_LIMIT_ID" },
+  "wlanScheduleEnable": false,
+  "rateAndBeaconCtrl": {
+    "rate2gCtrlEnable": false,
+    "rate5gCtrlEnable": false,
+    "rate6gCtrlEnable": false
+  },
+  "macFilterEnable": false,
+  "wlanId": "",
+  "enable11r": false,
+  "pmfMode": 3,
+  "multiCastSetting": {
+    "multiCastEnable": true,
+    "arpCastEnable": true,
+    "filterEnable": false,
+    "ipv6CastEnable": true,
+    "channelUtil": 100
+  },
+  "wpaPsk": [2, 3],
+  "deviceType": 1,
+  "dhcpOption82": { "dhcpEnable": false },
+  "greEnable": false,
+  "prohibitWifiShare": false,
+  "mloEnable": false
+}
+```
+
+**Key fields:**
+
+| Field | Type | Values |
+|-------|------|--------|
+| `name` | string | SSID name (broadcast name) |
+| `band` | integer | Bitmask: `1` = 2.4 GHz, `2` = 5 GHz, `3` = 2.4 + 5 GHz |
+| `security` | integer | `0` = Open, `3` = WPA2/WPA3-Personal. **`2` (WPA2-only) fails on creation — use `3` instead** |
+| `broadcast` | boolean | `true` = visible, `false` = hidden SSID |
+| `vlanSetting.mode` | integer | `0` = use WLAN Group default, `1` = custom VLAN |
+| `vlanSetting.customConfig.vlanId` | integer | VLAN ID (when mode = 1) |
+| `enable11r` | boolean | 802.11r Fast Roaming |
+| `pmfMode` | integer | Protected Management Frames: `1` = disabled, `2` = optional, `3` = required |
+| `wpaPsk` | int[] | WPA versions: `[2]` = WPA2, `[2, 3]` = WPA2/WPA3 |
+| `rateLimit.rateLimitId` | string | ID of the rate limit profile (get from existing SSIDs) |
+
+**Important:** The `rateLimitId` references a built-in rate limit profile. Get the "no limit" profile ID by reading an existing SSID.
 
 ### Modify SSID
 
 ```
-PATCH /setting/wlans/{wlanId}/ssids/{ssidId}
+PATCH /setting/wlans/{wlanGroupId}/ssids/{ssidId}
+```
+
+**Important:** Like all Omada PATCH endpoints, send the **full SSID object**. GET the SSID list first, modify the fields you want, remove read-only fields (`id`, `idInt`, `index`, `site`, `resource`, `vlanEnable`, `portalEnable`, `accessEnable`), then PATCH.
+
+### Delete SSID
+
+```
+DELETE /setting/wlans/{wlanGroupId}/ssids/{ssidId}
 ```
 
 ---
@@ -439,23 +521,154 @@ GET /devices?currentPage=1&currentPageSize=100
 ### Adopt Device
 
 ```
-POST /cmd/devices/{mac}/adopt
+POST /cmd/devices/adopt
 ```
+
+**Request body:**
+```json
+{
+  "mac": "AA-BB-CC-DD-EE-FF"
+}
+```
+
+**Important:** The MAC is in the **body**, not the URL. Adoption often fails on first attempt (device not yet discovered). Wait 10–30 seconds and retry — usually succeeds after the device reaches "Discovered" state (status 20).
 
 ---
 
-## Port Profiles
+## Access Points (EAPs)
+
+### Get AP Details
+
+```
+GET /eaps/{mac}
+```
+
+Returns full AP configuration including radio settings, IP settings, and SSID overrides.
+
+### SSID Override per AP
+
+Each AP has an `ssidOverrides` array that controls which SSIDs are enabled/disabled on that specific AP.
+
+```
+PATCH /eaps/{mac}
+```
+
+**Request body (only ssidOverrides needed):**
+```json
+{
+  "ssidOverrides": [
+    {
+      "index": 311881680,
+      "globalSsid": "HomeNet",
+      "supportBands": [0, 1],
+      "security": 3,
+      "enable": true,
+      "ssidEnable": true,
+      "vlanEnable": false,
+      "vlanId": 1,
+      "ssid": "HomeNet",
+      "psk": "wifi-password",
+      "ssidEnable": true
+    }
+  ]
+}
+```
+
+**Override fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `enable` | boolean | `true` = per-AP override is active (use `enable` + `ssidEnable` together) |
+| `ssidEnable` | boolean | `true` = SSID broadcasts on this AP, `false` = disabled on this AP |
+| `globalSsid` | string | The SSID name (read-only, used for matching) |
+| `supportBands` | int[] | `[0]` = 2.4G, `[1]` = 5G, `[0,1]` = both (read-only, from SSID band setting) |
+
+**Workflow:**
+1. `GET /eaps/{mac}` — get full AP object with `ssidOverrides`
+2. For each SSID override entry, set `enable: true` and `ssidEnable: true/false`
+3. `PATCH /eaps/{mac}` with `{ ssidOverrides: [...] }`
+
+---
+
+## Port Profiles (LAN Profiles)
 
 ### List Port Profiles
 
 ```
-GET /setting/switching/portProfiles?currentPage=1&currentPageSize=100
+GET /setting/lan/profiles?currentPage=1&currentPageSize=100
 ```
+
+**Important:** The endpoint is `/setting/lan/profiles`, NOT `/setting/switching/portProfiles`.
 
 ### Create Port Profile
 
 ```
-POST /setting/switching/portProfiles
+POST /setting/lan/profiles
+```
+
+**Request body (Trunk profile example):**
+```json
+{
+  "name": "Trunk-All",
+  "nativeNetworkId": "YOUR_MGMT_NETWORK_ID",
+  "tagNetworkIds": [
+    "YOUR_TRUSTED_NETWORK_ID",
+    "YOUR_WORK_NETWORK_ID",
+    "YOUR_IOT_NETWORK_ID"
+  ],
+  "poe": 1,
+  "dot1x": 0,
+  "spanningTreeEnable": true,
+  "duplex": 0,
+  "linkSpeed": 0,
+  "lldpMedEnable": false,
+  "topologyNotifyEnable": false,
+  "type": 0
+}
+```
+
+**Important:** The `nativeNetworkId` cannot appear in `tagNetworkIds` (error). Also, every port **must** have a native network — profiles without `nativeNetworkId` can be created but cannot be assigned to ports.
+
+---
+
+## Switch Ports
+
+### List Switch Ports
+
+```
+GET /switches/{mac}/ports
+```
+
+Returns all ports with their current configuration, status, and assigned profiles.
+
+### Modify Switch Port
+
+```
+PATCH /switches/{mac}/ports/{portNumber}
+```
+
+**Important notes:**
+- Use port **number** in the URL, not port ID
+- Requires the **full port object** (GET first, clone, modify, PATCH)
+- Remove read-only fields: `portStatus`, `portCap`
+- SFP+ ports may have different port numbers (e.g., SFP+1 = port 9, SFP+2 = port 10 on SG2210XMP-M2)
+
+**Workflow:**
+```javascript
+// 1. GET all ports
+const ports = await omada.apiCall('GET', `/switches/${mac}/ports`);
+
+// 2. Find the port you want to modify
+const port = ports.result.find(p => p.port === 1);
+
+// 3. Clone and modify
+const payload = { ...port };
+delete payload.portStatus;  // read-only
+delete payload.portCap;     // read-only
+payload.profileId = 'YOUR_PROFILE_ID';
+
+// 4. PATCH
+await omada.apiCall('PATCH', `/switches/${mac}/ports/1`, payload);
 ```
 
 ---

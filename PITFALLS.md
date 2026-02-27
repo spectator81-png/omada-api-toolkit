@@ -204,3 +204,87 @@ for (const rule of rules) {
 Gateway ACL rules are evaluated **top to bottom, first match wins**. The `index` field in the API response indicates the rule's position. When creating rules, they're appended at the end by default.
 
 **Best practice:** Create ALLOW rules first, then DENY rules. The controller doesn't provide an API to reorder rules after creation (you'd have to delete and recreate them).
+
+## 13. SSID Creation: `security: 2` (WPA2-Only) Fails
+
+When creating an SSID via `POST /setting/wlans/{wlanGroupId}/ssids`, using `security: 2` (WPA2-only) causes "Invalid request parameters" or "General error". **Always use `security: 3` (WPA2/WPA3-mixed).**
+
+WPA2-only clients still connect fine — the AP negotiates WPA2 with them automatically. If you absolutely need WPA2-only, create with `security: 3` and change via PATCH afterward (untested).
+
+```javascript
+// BAD — fails on creation
+{ security: 2, wpaPsk: [2], pmfMode: 1 }
+
+// GOOD — works, supports both WPA2 and WPA3 clients
+{ security: 3, wpaPsk: [2, 3], pmfMode: 3 }
+```
+
+## 14. Port Profiles Endpoint: `/setting/lan/profiles`, NOT `/setting/switching/portProfiles`
+
+The correct endpoint for port profiles is:
+
+```
+GET/POST /setting/lan/profiles
+```
+
+**Not** `/setting/switching/portProfiles` — that's the old endpoint and returns `-1600 Unsupported request path` on newer controllers.
+
+## 15. Trunk Profiles Without Native Network Cannot Be Assigned to Ports
+
+You can create a trunk profile without `nativeNetworkId` (all VLANs tagged, no native/untagged VLAN). The API accepts it. **But you cannot assign it to any switch port** — you'll get `-1001 Invalid request parameters`.
+
+The Omada Controller requires every port to have a native (untagged) network. Use a trunk profile with the management VLAN as native instead:
+
+```javascript
+// FAILS when assigned to ports (no native VLAN)
+{ name: 'Trunk-noPVID', tagNetworkIds: [...all VLANs...] }
+
+// WORKS (management VLAN as native, rest tagged)
+{ name: 'Trunk-All', nativeNetworkId: 'MGMT_NETWORK_ID', tagNetworkIds: [...other VLANs...] }
+```
+
+## 16. Switch Port PATCH: Full Object Required, Remove Read-Only Fields
+
+Like all Omada PATCH endpoints, switch ports require the full object. But you must also **remove** two read-only fields or the request fails:
+
+```javascript
+const port = existingPorts.find(p => p.port === targetPort);
+const payload = { ...port };
+delete payload.portStatus;  // read-only — causes "General error"
+delete payload.portCap;     // read-only — causes "General error"
+payload.profileId = newProfileId;
+
+await omada.apiCall('PATCH', `/switches/${mac}/ports/${targetPort}`, payload);
+```
+
+Also: the URL uses the **port number** (1, 2, 3...), not the port ID string. Using the port ID gives `-39701 This port does not exist`.
+
+## 17. Device Adoption Often Fails on First Attempt
+
+After connecting a new device, `POST /cmd/devices/adopt` frequently returns `-39000 This device does not exist` on the first try. The device hasn't been discovered by the controller yet.
+
+**Solution:** Wait 10–30 seconds and retry. The device needs to reach "Discovered" state (status 20) before adoption works. Usually succeeds on the 2nd or 3rd attempt.
+
+```javascript
+async function adoptWithRetry(mac, maxRetries = 5) {
+  for (let i = 0; i < maxRetries; i++) {
+    const res = await omada.apiCall('POST', '/cmd/devices/adopt', { mac });
+    if (res.errorCode === 0) return res;
+    console.log(`Attempt ${i+1} failed, waiting 15s...`);
+    await new Promise(r => setTimeout(r, 15000));
+  }
+  throw new Error(`Adoption failed after ${maxRetries} attempts`);
+}
+```
+
+## 18. SSID Band Values Are a Bitmask
+
+The `band` field in SSID configuration is a bitmask, not an enum:
+
+| Value | Meaning |
+|-------|---------|
+| `1` | 2.4 GHz only |
+| `2` | 5 GHz only |
+| `3` | 2.4 GHz + 5 GHz (1+2) |
+
+Creating an SSID with `band: 0` returns "Invalid request parameters".

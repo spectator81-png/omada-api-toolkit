@@ -75,8 +75,8 @@ console.log(networks.result.data);
 | File | Description |
 |------|-------------|
 | [`omada-api-helper.js`](omada-api-helper.js) | Zero-dependency Node.js API client with auth flow, cookie jar, and helper methods |
-| [`API-REFERENCE.md`](API-REFERENCE.md) | Complete endpoint documentation with exact payloads for ACLs, VLANs, mDNS, IP groups |
-| [`PITFALLS.md`](PITFALLS.md) | Common mistakes and undocumented behavior that will save you hours |
+| [`API-REFERENCE.md`](API-REFERENCE.md) | Complete endpoint documentation with exact payloads for ACLs, VLANs, SSIDs, mDNS, switch ports, port profiles, AP overrides |
+| [`PITFALLS.md`](PITFALLS.md) | 18 common mistakes and undocumented behavior that will save you hours |
 | [`examples/`](examples/) | Ready-to-use scripts for common tasks |
 
 ## Common Operations
@@ -121,6 +121,61 @@ await omada.apiCall('POST', '/setting/firewall/acls', {
 });
 ```
 
+### Create an SSID with VLAN assignment
+
+```javascript
+// First, get the WLAN group ID
+const wlanGroups = await omada.getWlanGroups();
+const wlanGroupId = wlanGroups.result.data[0].id;
+
+// Get rate limit ID from existing config (needed for creation)
+const existingSsids = await omada.getSsids(wlanGroupId);
+const rateLimitId = existingSsids.result.data[0]?.rateLimit?.rateLimitId;
+
+// Create SSID
+await omada.createSsid(wlanGroupId, {
+  name: 'MyNetwork',
+  band: 3,                    // 2.4 + 5 GHz
+  type: 0,
+  guestNetEnable: false,
+  security: 3,                // WPA2/WPA3 (do NOT use 2!)
+  broadcast: true,
+  vlanSetting: { mode: 1, customConfig: { vlanId: 10 } },
+  pskSetting: {
+    securityKey: 'your-wifi-password',
+    encryptionPsk: 3, versionPsk: 2, gikRekeyPskEnable: false
+  },
+  rateLimit: { rateLimitId },
+  ssidRateLimit: { rateLimitId },
+  wlanScheduleEnable: false,
+  macFilterEnable: false,
+  rateAndBeaconCtrl: { rate2gCtrlEnable: false, rate5gCtrlEnable: false, rate6gCtrlEnable: false },
+  wlanId: '', enable11r: false, pmfMode: 3,
+  multiCastSetting: { multiCastEnable: true, arpCastEnable: true, filterEnable: false, ipv6CastEnable: true, channelUtil: 100 },
+  wpaPsk: [2, 3], deviceType: 1,
+  dhcpOption82: { dhcpEnable: false },
+  greEnable: false, prohibitWifiShare: false, mloEnable: false
+});
+```
+
+### Disable an SSID on a specific AP
+
+```javascript
+// Get AP config
+const ap = await omada.getEap('AA-BB-CC-DD-EE-FF');
+const overrides = ap.result.ssidOverrides;
+
+// Disable "GuestNetwork" on this AP
+overrides.forEach(o => {
+  if (o.globalSsid === 'GuestNetwork') {
+    o.enable = true;       // activate per-AP override
+    o.ssidEnable = false;  // disable on this AP
+  }
+});
+
+await omada.updateEap('AA-BB-CC-DD-EE-FF', { ssidOverrides: overrides });
+```
+
 ### Check mDNS reflector rules
 
 ```javascript
@@ -136,11 +191,11 @@ mdns.result.data.forEach(rule => {
 
 1. **`protocols: []` is unreliable** — Always set explicit protocols like `[6, 17, 1]` for TCP+UDP+ICMP
 2. **PATCH needs the full payload** — GET first, modify, then PATCH with everything
-3. **Self-signed SSL cert** — You must set `NODE_TLS_REJECT_UNAUTHORIZED=0`
-4. **Source and destination can't be identical** — The controller silently rejects this
-5. **Sessions expire after ~30 minutes** — Call `connect()` again in long-running scripts
+3. **`security: 2` (WPA2-only) fails on SSID creation** — Use `security: 3` (WPA2/WPA3) instead
+4. **Trunk profiles without native VLAN can't be assigned to ports** — Always include `nativeNetworkId`
+5. **Device adoption often fails on first attempt** — Wait 10–30s and retry
 
-See [PITFALLS.md](PITFALLS.md) for the full list with explanations.
+See [PITFALLS.md](PITFALLS.md) for all 18 pitfalls with explanations.
 
 ## Discovering New Endpoints
 
