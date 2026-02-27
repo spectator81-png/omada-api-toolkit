@@ -549,26 +549,28 @@ Returns full AP configuration including radio settings, IP settings, and SSID ov
 
 Each AP has an `ssidOverrides` array that controls which SSIDs are enabled/disabled on that specific AP.
 
+**IMPORTANT:** `PATCH /eaps/{mac}` silently ignores `ssidOverrides` (returns success but discards changes). You **must** use the dedicated WLAN config endpoint:
+
 ```
-PATCH /eaps/{mac}
+PUT /eaps/{mac}/config/wlans
 ```
 
-**Request body (only ssidOverrides needed):**
+**Request body:**
 ```json
 {
+  "wlanId": "YOUR_WLAN_GROUP_ID",
   "ssidOverrides": [
     {
       "index": 311881680,
       "globalSsid": "HomeNet",
       "supportBands": [0, 1],
       "security": 3,
-      "enable": true,
+      "enable": false,
       "ssidEnable": true,
       "vlanEnable": false,
       "vlanId": 1,
       "ssid": "HomeNet",
-      "psk": "wifi-password",
-      "ssidEnable": true
+      "psk": "wifi-password"
     }
   ]
 }
@@ -578,15 +580,17 @@ PATCH /eaps/{mac}
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `enable` | boolean | `true` = per-AP override is active (use `enable` + `ssidEnable` together) |
 | `ssidEnable` | boolean | `true` = SSID broadcasts on this AP, `false` = disabled on this AP |
+| `enable` | boolean | Must be `false`! Setting `true` causes `-39304 SSID name already exists` |
 | `globalSsid` | string | The SSID name (read-only, used for matching) |
 | `supportBands` | int[] | `[0]` = 2.4G, `[1]` = 5G, `[0,1]` = both (read-only, from SSID band setting) |
+| `wlanId` | string | **Required.** The WLAN group ID from `GET /setting/wlans` |
 
 **Workflow:**
 1. `GET /eaps/{mac}` — get full AP object with `ssidOverrides`
-2. For each SSID override entry, set `enable: true` and `ssidEnable: true/false`
-3. `PATCH /eaps/{mac}` with `{ ssidOverrides: [...] }`
+2. `GET /setting/wlans?currentPage=1&currentPageSize=100` — get WLAN group ID
+3. For each SSID override entry, set `ssidEnable: true/false` (keep `enable: false`)
+4. `PUT /eaps/{mac}/config/wlans` with `{ wlanId: "...", ssidOverrides: [...] }`
 
 ### Radio Settings (Channel, TX Power, RSSI)
 

@@ -76,7 +76,7 @@ console.log(networks.result.data);
 |------|-------------|
 | [`omada-api-helper.js`](omada-api-helper.js) | Zero-dependency Node.js API client with auth flow, cookie jar, and helper methods |
 | [`API-REFERENCE.md`](API-REFERENCE.md) | Complete endpoint documentation with exact payloads for ACLs, VLANs, SSIDs, mDNS, switch ports, port profiles, AP radio/channel config |
-| [`PITFALLS.md`](PITFALLS.md) | 19 common mistakes and undocumented behavior that will save you hours |
+| [`PITFALLS.md`](PITFALLS.md) | 20 common mistakes and undocumented behavior that will save you hours |
 | [`examples/`](examples/) | Ready-to-use scripts for common tasks |
 
 ## Common Operations
@@ -161,19 +161,22 @@ await omada.createSsid(wlanGroupId, {
 ### Disable an SSID on a specific AP
 
 ```javascript
-// Get AP config
+// IMPORTANT: PATCH /eaps/{mac} silently ignores ssidOverrides!
+// Must use PUT /eaps/{mac}/config/wlans instead.
+
+// Get AP config and WLAN group ID
 const ap = await omada.getEap('AA-BB-CC-DD-EE-FF');
-const overrides = ap.result.ssidOverrides;
+const wlanGroups = await omada.getWlanGroups();
+const wlanGroupId = wlanGroups.result.data[0].id;
 
 // Disable "GuestNetwork" on this AP
-overrides.forEach(o => {
-  if (o.globalSsid === 'GuestNetwork') {
-    o.enable = true;       // activate per-AP override
-    o.ssidEnable = false;  // disable on this AP
-  }
-});
+const overrides = ap.result.ssidOverrides.map(o => ({
+  ...o,
+  ssidEnable: o.globalSsid === 'GuestNetwork' ? false : o.ssidEnable,
+  // enable must stay false! (true causes "SSID name already exists" error)
+}));
 
-await omada.updateEap('AA-BB-CC-DD-EE-FF', { ssidOverrides: overrides });
+await omada.setEapSsidOverrides('AA-BB-CC-DD-EE-FF', wlanGroupId, overrides);
 ```
 
 ### Set AP channel and TX power
@@ -211,9 +214,9 @@ mdns.result.data.forEach(rule => {
 2. **PATCH needs the full payload** — GET first, modify, then PATCH with everything
 3. **`security: 2` (WPA2-only) fails on SSID creation** — Use `security: 3` (WPA2/WPA3) instead
 4. **Trunk profiles without native VLAN can't be assigned to ports** — Always include `nativeNetworkId`
-5. **Device adoption often fails on first attempt** — Wait 10–30s and retry
+5. **SSID overrides need `PUT /eaps/{mac}/config/wlans`** — `PATCH /eaps/{mac}` silently ignores `ssidOverrides`
 
-See [PITFALLS.md](PITFALLS.md) for all 19 pitfalls with explanations.
+See [PITFALLS.md](PITFALLS.md) for all 20 pitfalls with explanations.
 
 ## Discovering New Endpoints
 

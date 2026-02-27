@@ -336,9 +336,25 @@ async function getEap(mac) {
   return apiCall('GET', `/eaps/${mac}`);
 }
 
-/** Update AP settings (e.g., SSID overrides, radio, RSSI) */
+/** Update AP settings (e.g., radio, RSSI — but NOT SSID overrides!) */
 async function updateEap(mac, config) {
   return apiCall('PATCH', `/eaps/${mac}`, config);
+}
+
+/**
+ * Set SSID overrides per AP (enable/disable SSIDs on specific APs).
+ * IMPORTANT: PATCH /eaps/{mac} silently ignores ssidOverrides!
+ * Must use PUT /eaps/{mac}/config/wlans instead.
+ *
+ * @param {string} mac - AP MAC address
+ * @param {string} wlanGroupId - WLAN group ID (from getWlanGroups())
+ * @param {Array} ssidOverrides - Array of override objects with ssidEnable: true/false
+ */
+async function setEapSsidOverrides(mac, wlanGroupId, ssidOverrides) {
+  return apiCall('PUT', `/eaps/${mac}/config/wlans`, {
+    wlanId: wlanGroupId,
+    ssidOverrides,
+  });
 }
 
 /**
@@ -488,6 +504,7 @@ module.exports = {
   getEap,
   updateEap,
   setEapChannel,
+  setEapSsidOverrides,
   getStaticRoutes,
   exploreSettings,
 };

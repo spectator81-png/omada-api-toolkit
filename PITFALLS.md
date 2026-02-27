@@ -317,3 +317,47 @@ Common frequency values:
 | Auto = 0 | Ch 132 = 5660 MHz |
 
 Set `freq: 0` to return to auto channel selection.
+
+## 20. SSID Overrides: Use `PUT /eaps/{mac}/config/wlans`, NOT `PATCH /eaps/{mac}`
+
+You might expect to enable/disable SSIDs on specific APs using the standard EAP PATCH endpoint with `ssidOverrides`. **It doesn't work.** The PATCH returns `errorCode: 0` (success) but silently discards the changes.
+
+The correct endpoint is:
+
+```javascript
+// BAD — returns success but ignores ssidOverrides
+await omada.apiCall('PATCH', `/eaps/${mac}`, {
+  ssidOverrides: modifiedOverrides,
+});
+
+// GOOD — actually persists SSID enable/disable per AP
+await omada.apiCall('PUT', `/eaps/${mac}/config/wlans`, {
+  wlanId: 'YOUR_WLAN_GROUP_ID',  // from GET /setting/wlans
+  ssidOverrides: modifiedOverrides,
+});
+```
+
+Key details:
+- `ssidEnable: true` = SSID broadcasts on this AP
+- `ssidEnable: false` = SSID disabled on this AP
+- `enable` field must stay `false` for all entries (it controls custom SSID renaming, not broadcast)
+- Setting `enable: true` causes error `-39304 This SSID name already exists`
+- The `wlanId` field is **required** in the PUT body
+
+Example: Disable "GuestNetwork" on a specific AP:
+
+```javascript
+const ap = await omada.apiCall('GET', `/eaps/${mac}`);
+const overrides = ap.result.ssidOverrides.map(o => ({
+  ...o,
+  ssidEnable: o.globalSsid === 'GuestNetwork' ? false : o.ssidEnable,
+}));
+
+const wlanGroups = await omada.apiCall('GET', '/setting/wlans?currentPage=1&currentPageSize=100');
+const wlanId = wlanGroups.result.data[0].id;
+
+await omada.apiCall('PUT', `/eaps/${mac}/config/wlans`, {
+  wlanId,
+  ssidOverrides: overrides,
+});
+```
