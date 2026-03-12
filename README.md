@@ -237,6 +237,10 @@ The API is not fully documented by TP-Link. The best way to find new endpoints:
 
 The API structure should be similar across Omada Controller versions 5.x and 6.x, but field names may vary between versions. Software controller (Windows/Linux) may use a different default port (8043 instead of 443). Not yet verified — PRs welcome!
 
+## Author
+
+[Florian Keusch](https://keusch.wien) — Web Development & Digital Strategy
+
 ## License
 
 MIT
